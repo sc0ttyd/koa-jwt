@@ -20,14 +20,7 @@ module.exports = function(opts) {
   var middleware = function *jwt(next) {
     var token, msg, user, parts, scheme, credentials, secret;
 
-    for (var i = 0; i < tokenResolvers.length; i++) {
-      var output = tokenResolvers[i].call(this, opts);
-
-      if (output) {
-        token = output;
-        break;
-      }
-    }
+    tokenResolvers.find((resolver) => token = resolver(ctx, opts));
 
     if (!token && !opts.passthrough) {
       this.throw(401, 'No authentication token found\n');
