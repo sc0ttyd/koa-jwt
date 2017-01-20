@@ -1,8 +1,5 @@
 # koa-jwt
 
-Master branch (koa v1): [![Build Status - master](https://travis-ci.org/koajs/jwt.svg?branch=master)](https://travis-ci.org/koajs/jwt)
-koa-v2 branch: [![Build Status - koa-v2](https://travis-ci.org/koajs/jwt.svg?branch=koa-v2)](https://travis-ci.org/koajs/jwt)
-
 Koa middleware that validates JSON Web Tokens and sets `ctx.state.user`
 (by default) if a valid token is provided.
 
@@ -11,6 +8,15 @@ in your [Koa](http://koajs.com/) (node.js) applications.
 
 See [this article](http://blog.auth0.com/2014/01/07/angularjs-authentication-with-cookies-vs-token/)
 for a good introduction.
+
+
+## Build Status
+
+| Branch               | Status        | Scan   |
+| ---------------------|:-------------:| -------:|
+| [master (koa v1.x)](https://github.com/koajs/jwt)    | [![Build Status - master](https://travis-ci.org/koajs/jwt.svg?branch=master)](https://travis-ci.org/koajs/jwt)   |  [![Known Vulnerabilities](https://snyk.io/test/github/koajs/jwt/badge.svg)](https://snyk.io/test/github/koajs/jwt) |
+| [koa-v2](https://github.com/koajs/jwt/tree/koa-v2)   | [![Build Status - koa-v2](https://travis-ci.org/koajs/jwt.svg?branch=koa-v2)](https://travis-ci.org/koajs/jwt)   |  [![Known Vulnerabilities](https://snyk.io/test/github/koajs/jwt/koa-v2/badge.svg)](https://snyk.io/test/github/koajs/jwt/koa-v2)  |
+
 
 ## Installation
 
