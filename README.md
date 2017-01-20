@@ -1,5 +1,8 @@
 # koa-jwt
 
+Master branch (koa v1): [![Build Status - master](https://travis-ci.org/koajs/jwt.svg?branch=master)](https://travis-ci.org/koajs/jwt)
+koa-v2 branch: [![Build Status - koa-v2](https://travis-ci.org/koajs/jwt.svg?branch=koa-v2)](https://travis-ci.org/koajs/jwt)
+
 Koa middleware that validates JSON Web Tokens and sets `ctx.state.user`
 (by default) if a valid token is provided.
 
@@ -9,7 +12,7 @@ in your [Koa](http://koajs.com/) (node.js) applications.
 See [this article](http://blog.auth0.com/2014/01/07/angularjs-authentication-with-cookies-vs-token/)
 for a good introduction.
 
-## Install
+## Installation
 
 ```
 $ npm install koa-jwt
@@ -22,11 +25,33 @@ token. If the token is valid, `ctx.state.user` (by default) will be set
 with the JSON object decoded to be used by later middleware for
 authorization and access control.
 
-The token is normally provided in a HTTP header (`Authorization`), but it 
-can also be provided in a cookie by setting the `opts.cookie` option
-to the name of the cookie that contains the token. 
 
-Normally you provide a single shared secret in `opts.secret`, but another 
+### Retrieving the token
+
+The token is normally provided in a HTTP header (`Authorization`), but it
+can also be provided in a cookie by setting the `opts.cookie` option
+to the name of the cookie that contains the token. Custom token retrieval
+can also be done through the `opts.getToken` option. The provided function
+should match the following interface:
+
+```js
+/**
+ * Your custom token resolver
+ * @this The ctx object passed to the middleware
+ *
+ * @param  {object}      opts The middleware's options
+ * @return {String|null}      The resolved token or null if not found
+ */
+```
+
+The resolution order for the token is the following. The first non-empty token resolved will be the one that is verified.
+ - `opts.getToken` function
+ - check the cookies (if `opts.cookie` is set)
+ - check the Authorization header for a bearer token
+
+### Passing the secret
+
+Normally you provide a single shared secret in `opts.secret`, but another
 alternative is to have an earlier middleware set `ctx.state.secret`,
 typically per request. If this property exists, it will be used instead
 of the one in `opts.secret`.
@@ -116,12 +141,6 @@ even if no valid Authorization header was found:
 app.use(jwt({ secret: 'shared-secret', passthrough: true }));
 ```
 This lets downstream middleware make decisions based on whether `ctx.state.user` is set.
-Passing a RegExp to passthrough instead of true allows you to only enable passthrough for 
-paths that match the RegExp. For example, to enable passthrough only on /passthrough:
-
-```js
-app.use(jwt({ secret: 'shared-secret', passthrough: /^\/passthrough$/ }));
-```
 
 
 If you prefer to use another ctx key for the decoded data, just pass in `key`, like so:
@@ -129,6 +148,9 @@ If you prefer to use another ctx key for the decoded data, just pass in `key`, l
 app.use(jwt({ secret: 'shared-secret', key: 'jwtdata' }));
 ```
 This makes the decoded data available as `ctx.state.jwtdata`.
+
+If a valid token is found, the original raw token is made available as `ctx.state.token`.
+You can use a different key in `ctx.state` by setting `opts.tokenKey` to your desired key.
 
 You can specify audience and/or issuer as well:
 ```js
@@ -179,6 +201,9 @@ This code is largely based on [express-jwt](https://github.com/auth0/express-jwt
 - [michaelwestphal](https://github.com/michaelwestphal)
 - [sc0ttyd](https://github.com/sc0ttyd)
 - [Jackong](https://github.com/Jackong)
+- [danwkennedy](https://github.com/danwkennedy)
+- [petermelias](https://github.com/petermelias)
+- [jhnns](https://github.com/jhnns)
 
 ## License
 

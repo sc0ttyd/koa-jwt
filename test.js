@@ -30,6 +30,45 @@ describe('failure tests', function () {
       .end(done);
   });
 
+  it('should return 401 if authorization header does not start with "Bearer "', function(done) {
+    var app = koa();
+
+    app.use(koajwt({ secret: 'shhhh' }));
+    request(app.listen())
+      .get('/')
+      .set('Authorization', 'Beer sometoken')
+      .expect(401)
+      .expect('Bad Authorization header format. Format is "Authorization: Bearer <token>"\n')
+      .end(done);
+  });
+
+  it('should allow provided getToken function to throw', function(done) {
+    var app = koa();
+
+    app.use(koajwt({ secret: 'shhhh', getToken: function() {
+      this.throw(401, 'Bad Authorization\n');
+    } }));
+    request(app.listen())
+      .get('/')
+      .expect(401)
+      .expect('Bad Authorization\n')
+      .end(done);
+  });
+
+  it('should throw if getToken function returns invalid jwt', function(done) {
+    var app = koa();
+
+    app.use(koajwt({ secret: 'shhhhhh', getToken: function() {
+      var secret = 'bad';
+      return koajwt.sign({foo: 'bar'}, secret);
+    } }));
+    request(app.listen())
+      .get('/')
+      .expect(401)
+      .expect('Invalid token\n')
+      .end(done);
+  });
+
   it('should throw if authorization header is not well-formatted jwt', function(done) {
     var app = koa();
 
@@ -95,7 +134,7 @@ describe('failure tests', function () {
 
   it('should throw if token is expired', function(done) {
     var secret = 'shhhhhh';
-    var token = koajwt.sign({foo: 'bar', exp: 1382412921}, secret);
+    var token = koajwt.sign({foo: 'bar', exp: 1382412921 }, secret);
 
     var app = koa();
 
@@ -133,8 +172,8 @@ describe('failure tests', function () {
     request(app.listen())
       .get('/')
       .set('Authorization', 'Bearer ' + token)
-      .expect(401)
-      .expect('Invalid secret\n')
+      .expect(500)
+      .expect('Internal Server Error')
       .end(done);
   });
 
@@ -146,11 +185,11 @@ describe('failure tests', function () {
 
     app.use(koajwt({secret: 'wrong secret', debug: true}));
     request(app.listen())
-      .get('/')
-      .set('Authorization', 'Bearer ' + token)
-      .expect(401)
-      .expect('Invalid token - invalid signature\n')
-      .end(done);
+        .get('/')
+        .set('Authorization', 'Bearer ' + token)
+        .expect(401)
+        .expect('Invalid token - invalid signature\n')
+        .end(done);
   });
 
 });
@@ -170,39 +209,10 @@ describe('passthrough tests', function () {
       .expect('')
       .end(done);
   });
-
-  it('should continue if `passthrough` is a RegExp and the path matches', function (done) {
-    var app = koa();
-
-    app.use(koajwt({ secret: 'shhhhhh', passthrough: /^\/passthrough/, debug: true }));
-    app.use(function* (next) {
-      this.body = this.state.user;
-    });
-
-    request(app.listen())
-      .get('/passthrough')
-      .expect(204) // No content
-      .expect('')
-      .end(done);
-  });
-
-  it('should not continue if `passthrough` is a RegExp and the path does not match', function (done) {
-    var app = koa();
-
-    app.use(koajwt({ secret: 'shhhhhh', passthrough: /^\/passthrough/, debug: true }));
-    app.use(function* (next) {
-      this.body = this.state.user;
-    });
-
-    request(app.listen())
-      .get('/dontpassthrough')
-      .expect(401)
-      .expect('No Authorization header found\n')
-      .end(done);
-  });
 });
 
-describe('success tests', function() {
+
+describe('success tests', function () {
 
   it('should work if authorization header is valid jwt', function(done) {
     var validUserResponse = function(res) {
@@ -220,12 +230,60 @@ describe('success tests', function() {
     });
 
     request(app.listen())
-    .get('/')
-    .set('Authorization', 'Bearer ' + token)
-    .expect(200)
-    .expect(validUserResponse)
-    .end(done);
+      .get('/')
+      .set('Authorization', 'Bearer ' + token)
+      .expect(200)
+      .expect(validUserResponse)
+      .end(done);
 
+  });
+
+  it('should work if the provided getToken function returns a valid jwt', function(done) {
+    var validUserResponse = function(res) {
+      if (!(res.body.foo === 'bar')) return "Wrong user";
+    }
+
+    var secret = 'shhhhhh';
+    var token = koajwt.sign({foo: 'bar'}, secret);
+
+    var app = koa();
+    app.use(koajwt({ secret: secret, getToken: function() {
+      return this.request.query.token;
+    }}));
+    app.use(function* (next) {
+      this.body = this.state.user;
+    });
+
+    request(app.listen())
+      .get('/?token=' + token)
+      .expect(200)
+      .expect(validUserResponse)
+      .end(done);
+  });
+
+  it('should use the first resolved token', function(done) {
+    var validUserResponse = function(res) {
+      if (!(res.body.foo === 'bar')) return "Wrong user";
+    }
+
+    var secret = 'shhhhhh';
+    var token = koajwt.sign({foo: 'bar'}, secret);
+
+    var invalidToken = koajwt.sign({foo: 'bar'}, 'badSecret');
+
+    var app = koa();
+    app.use(koajwt({ secret: secret, cookie: 'jwt'}));
+    app.use(function* (next) {
+      this.body = this.state.user;
+    });
+
+    request(app.listen())
+      .get('/')
+      .set('Cookie', 'jwt=' + token + ';')
+      .set('Authorization', 'Bearer ' + invalidToken)
+      .expect(200)
+      .expect(validUserResponse)
+      .end(done);
   });
 
   it('should work if opts.cookies is set and the specified cookie contains valid jwt', function(done) {
@@ -252,30 +310,6 @@ describe('success tests', function() {
 
   });
 
-  it('should work if opts.cookies is set and there is no cookie but there is an authorization header with valid jwt', function(done) {
-    var validUserResponse = function(res) {
-      if (!(res.body.foo === 'bar')) return "Wrong user";
-    }
-
-    var secret = 'shhhhhh';
-    var token = koajwt.sign({foo: 'bar', cookie: 'jwt'}, secret);
-
-    var app = koa();
-
-    app.use(koajwt({secret: secret}));
-    app.use(function* (next) {
-      this.body = this.state.user;
-    });
-
-    request(app.listen())
-    .get('/')
-    .set('Authorization', 'Bearer ' + token)
-    .expect(200)
-    .expect(validUserResponse)
-    .end(done);
-
-  });
-
   it('should use provided key for decoded data', function(done) {
     var validUserResponse = function(res) {
       if (!(res.body.foo === 'bar')) return "Key param not used properly";
@@ -292,11 +326,11 @@ describe('success tests', function() {
     });
 
     request(app.listen())
-    .get('/')
-    .set('Authorization', 'Bearer ' + token)
-    .expect(200)
-    .expect(validUserResponse)
-    .end(done);
+      .get('/')
+      .set('Authorization', 'Bearer ' + token)
+      .expect(200)
+      .expect(validUserResponse)
+      .end(done);
 
   });
 
@@ -311,12 +345,36 @@ describe('success tests', function() {
     var app = koa();
 
     app.use(function *(next) {
-      this.state.secret = secret;
-      yield next;
+        this.state.secret = secret;
+        yield next;
     });
     app.use(koajwt());
     app.use(function* (next) {
       this.body = this.state.user;
+    });
+
+    request(app.listen())
+        .get('/')
+        .set('Authorization', 'Bearer ' + token)
+        .expect(200)
+        .expect(validUserResponse)
+        .end(done);
+  });
+
+
+  it('should provide the raw token to the state context', function (done) {
+    var validUserResponse = function (res) {
+      if (!(res.body.token === token)) return "Token not passed through";
+    }
+
+    var secret = 'shhhhhh';
+    var token = koajwt.sign({foo: 'bar'}, secret);
+
+    var app = koa();
+
+    app.use(koajwt({ secret: secret, key: 'jwtdata', tokenKey: 'testTokenKey' }));
+    app.use(function* (next) {
+      this.body = { token: this.state.testTokenKey };
     });
 
     request(app.listen())
@@ -347,11 +405,11 @@ describe('success tests', function() {
     });
 
     request(app.listen())
-      .get('/')
-      .set('Authorization', 'Bearer ' + token)
-      .expect(200)
-      .expect(validUserResponse)
-      .end(done);
+        .get('/')
+        .set('Authorization', 'Bearer ' + token)
+        .expect(200)
+        .expect(validUserResponse)
+        .end(done);
   });
 });
 
